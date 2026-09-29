@@ -150,6 +150,7 @@ jobs:
       - run: node scripts/publish-release.mjs
         env:
           RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+      - run: node scripts/wait-for-release.mjs
       - run: |
           npm install --global @salesforce/cli
           printf 'y\n' | sf plugins install "systemeame@${{ needs.prepare.outputs.version }}"
