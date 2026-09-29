@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Report total processing time in seconds in the command summary and JSON output.
+
 - Build and package Windows x64 and ARM64 executables with Windows CI coverage.
 - Select Windows native packages at runtime and support host-native local builds
   and packaging on Windows.

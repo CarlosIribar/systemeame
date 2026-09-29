@@ -28,6 +28,8 @@ sf apex system-mode fix --all --dry-run
 - Rewrites are AST/byte-offset based; comments and strings are not treated as
   operations.
 - Files with parser errors remain unchanged with diagnostics.
+- The final summary reports total processing time in seconds; JSON output includes
+  `durationSeconds`. `--quiet` suppresses the human summary.
 - Dynamic query text will never be rewritten to add `WITH SYSTEM_MODE`.
 
 ## Development

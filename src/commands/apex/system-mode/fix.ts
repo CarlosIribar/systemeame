@@ -1,5 +1,6 @@
 import { Flags } from '@oclif/core';
 import { SfCommand } from '@salesforce/sf-plugins-core';
+import { performance } from 'node:perf_hooks';
 import { runNative } from '../../../native/run.js';
 
 type FixResult = { result: unknown };
@@ -21,6 +22,7 @@ export default class Fix extends SfCommand<FixResult> {
   };
 
   public async run(): Promise<FixResult> {
+    const startedAt = performance.now();
     const { flags } = await this.parse(Fix);
     if (flags.check && flags['dry-run']) this.error('--check cannot be used with --dry-run.');
     if (flags.quiet && flags.verbose) this.error('--quiet cannot be used with --verbose.');
@@ -28,7 +30,8 @@ export default class Fix extends SfCommand<FixResult> {
     // Scope discovery and filesystem writes are intentionally native. This request
     // shape is already versioned so the wrapper will not duplicate those rules.
     const finished = await runNative({ protocolVersion: 1, projectDir: flags['project-dir'], all: flags.all, dryRun: flags['dry-run'], check: flags.check, allowUnstaged: flags['allow-unstaged'] });
-    if (!this.jsonEnabled() && !flags.quiet) this.info(`systemeame finished with ${finished.result.proposedEdits} proposed edits.`);
+    const durationSeconds = (performance.now() - startedAt) / 1000;
+    if (!this.jsonEnabled() && !flags.quiet) this.info(`systemeame finished with ${finished.result.proposedEdits} proposed edits in ${durationSeconds.toFixed(3)} seconds.`);
     if (!this.jsonEnabled()) {
       for (const diagnostic of finished.result.diagnostics) {
         this.warn(`[${diagnostic.code}] ${diagnostic.message}${diagnostic.suggestion ? ` ${diagnostic.suggestion}` : ''}`);
@@ -37,6 +40,6 @@ export default class Fix extends SfCommand<FixResult> {
     // Keep the structured SfCommand result available (especially for --json),
     // while preserving the native command's documented logical status.
     if (finished.exitCode !== 0) process.exitCode = finished.exitCode;
-    return { result: finished.result };
+    return { result: { ...finished.result, durationSeconds } };
   }
 }
