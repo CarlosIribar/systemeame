@@ -1,6 +1,6 @@
 {
   "name": "systemeame-linux-arm64-gnu",
-  "version": "0.1.1",
+  "version": "0.1.4",
   "description": "Native Linux ARM64 GNU binary for systemeame",
   "license": "MIT",
   "os": [
