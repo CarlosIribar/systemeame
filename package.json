@@ -1,0 +1,67 @@
+{
+  "name": "systemeame",
+  "version": "0.1.0",
+  "description": "Salesforce CLI plugin for explicit Apex system execution modes",
+  "license": "MIT",
+  "author": "Carlos Iribar",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CarlosIribar/systemeame.git"
+  },
+  "homepage": "https://github.com/CarlosIribar/systemeame#readme",
+  "bugs": {
+    "url": "https://github.com/CarlosIribar/systemeame/issues"
+  },
+  "keywords": [
+    "salesforce",
+    "sf",
+    "oclif",
+    "apex",
+    "system-mode"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "main": "./lib/index.js",
+  "files": [
+    "lib",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=20.17.0"
+  },
+  "oclif": {
+    "commands": "./lib/commands"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node --test test/*.test.js",
+    "test:integration": "npm run build && npm run build:native && node --test test/integration/*.test.js",
+    "verify:packages": "node scripts/verify-packages.mjs",
+    "build:native": "cargo build --release --locked && node scripts/stage-native.mjs --target linux-x64-gnu",
+    "pack:local": "npm run build && npm run build:native && node scripts/pack-local.mjs",
+    "pack:release": "node scripts/pack-release.mjs",
+    "release:prepare": "node scripts/release-prepare.mjs"
+  },
+  "dependencies": {
+    "@salesforce/sf-plugins-core": "^12.1.0"
+  },
+  "optionalDependencies": {
+    "systemeame-darwin-arm64": "0.1.0",
+    "systemeame-darwin-x64": "0.1.0",
+    "systemeame-linux-arm64-gnu": "0.1.0",
+    "systemeame-linux-arm64-musl": "0.1.0",
+    "systemeame-linux-x64-gnu": "0.1.0",
+    "systemeame-linux-x64-musl": "0.1.0",
+    "systemeame-win32-arm64": "0.1.0",
+    "systemeame-win32-x64": "0.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.3",
+    "typescript": "^5.8.3"
+  }
+}

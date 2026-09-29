@@ -1,0 +1,30 @@
+{
+  "name": "systemeame-linux-arm64-musl",
+  "version": "0.1.0",
+  "description": "Native Linux ARM64 musl binary for systemeame",
+  "license": "MIT",
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "libc": [
+    "musl"
+  ],
+  "files": [
+    "bin",
+    "README.md",
+    "LICENSE"
+  ],
+  "bin": {
+    "systemeame-native": "bin/systemeame-native"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CarlosIribar/systemeame.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

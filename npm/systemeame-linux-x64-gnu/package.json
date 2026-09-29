@@ -1,0 +1,30 @@
+{
+  "name": "systemeame-linux-x64-gnu",
+  "version": "0.1.0",
+  "description": "Native Linux x64 GNU binary for systemeame",
+  "license": "MIT",
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "libc": [
+    "glibc"
+  ],
+  "files": [
+    "bin",
+    "README.md",
+    "LICENSE"
+  ],
+  "bin": {
+    "systemeame-native": "bin/systemeame-native"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CarlosIribar/systemeame.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
