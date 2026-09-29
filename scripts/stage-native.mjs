@@ -1,13 +1,14 @@
 import { chmod, copyFile, mkdir, stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { hostTarget } from './host-target.mjs';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const argument = (name) => {
   const index = process.argv.indexOf(name);
   return index === -1 ? undefined : process.argv[index + 1];
 };
-const target = argument('--target');
+const target = argument('--target') ?? hostTarget();
 const sourceArgument = argument('--source');
 
 const targets = {

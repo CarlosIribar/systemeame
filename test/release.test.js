@@ -15,7 +15,7 @@ test('patch increments numerically and respects an explicit major or minor bump'
 
 import { execFileSync } from 'node:child_process';
 import { cpSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 test('release reservation is retry-safe, advances patches, and never pushes main', (t) => {
@@ -30,7 +30,7 @@ test('release reservation is retry-safe, advances patches, and never pushes main
   git('config', 'user.name', 'Test');
   git('config', 'user.email', 'test@example.invalid');
   for (const name of ['package.json', 'package-lock.json', 'Cargo.toml', 'Cargo.lock', 'scripts', 'npm']) {
-    cpSync(name, join(repo, name), { recursive: true, filter: (source) => !source.includes('/bin/') && !source.endsWith('/bin') });
+    cpSync(name, join(repo, name), { recursive: true, filter: (source) => basename(source) !== 'bin' });
   }
   git('add', '.');
   git('commit', '-m', 'source');

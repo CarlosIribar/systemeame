@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Build and package Windows x64 and ARM64 executables with Windows CI coverage.
+- Select Windows native packages at runtime and support host-native local builds
+  and packaging on Windows.
+
 - Add explicit system mode to static SOQL, including multiline queries, binds,
   loops, and queries with ordering, limits, or subqueries.
 - Preserve existing access modes and report incompatible WITH clauses for review.

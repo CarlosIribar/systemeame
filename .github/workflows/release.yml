@@ -51,6 +51,8 @@ jobs:
           - { id: linux-arm64-musl, runner: ubuntu-24.04-arm, rust-target: aarch64-unknown-linux-musl, extension: '' }
           - { id: darwin-x64, runner: macos-15-intel, rust-target: x86_64-apple-darwin, extension: '' }
           - { id: darwin-arm64, runner: macos-15, rust-target: aarch64-apple-darwin, extension: '' }
+          - { id: win32-x64, runner: windows-2022, rust-target: x86_64-pc-windows-msvc, extension: '.exe' }
+          - { id: win32-arm64, runner: windows-11-arm, rust-target: aarch64-pc-windows-msvc, extension: '.exe' }
     runs-on: ${{ matrix.runner }}
     defaults:
       run:
@@ -80,6 +82,16 @@ jobs:
         run: |
           printf '%s' '{"protocolVersion":1,"source":"public class Example { void run(Account a) { insert a; } }"}' | npm/systemeame-${{ matrix.id }}/bin/systemeame-native${{ matrix.extension }} > native-result.json
           node -e 'const r = require("./native-result.json"); if (r.exitCode !== 0 || r.result.proposedEdits !== 1) process.exit(1)'
+      - name: Test Windows plugin integration
+        if: startsWith(matrix.id, 'win32')
+        run: |
+          npm ci
+          npm run build
+          cargo test --locked --workspace --target ${{ matrix.rust-target }}
+          node --test test/integration/native.test.js
+          npm install --global @salesforce/cli
+          sf plugins link .
+          sf apex system-mode fix --help
       - run: mkdir -p release/${{ matrix.id }}
       - run: npm pack --ignore-scripts --pack-destination "${{ github.workspace }}/release/${{ matrix.id }}"
         working-directory: npm/systemeame-${{ matrix.id }}

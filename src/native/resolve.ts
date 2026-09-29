@@ -19,6 +19,8 @@ const packageForTarget: Record<string, string> = {
   'linux-arm64-gnu': 'systemeame-linux-arm64-gnu',
   'linux-x64-musl': 'systemeame-linux-x64-musl',
   'linux-arm64-musl': 'systemeame-linux-arm64-musl',
+  'win32-x64': 'systemeame-win32-x64',
+  'win32-arm64': 'systemeame-win32-arm64',
   'darwin-x64': 'systemeame-darwin-x64',
   'darwin-arm64': 'systemeame-darwin-arm64',
 };
@@ -26,7 +28,7 @@ const packageForTarget: Record<string, string> = {
 export function resolveNativeBinary(): string {
   const target = targetName();
   const packageName = packageForTarget[target];
-  if (!packageName) throw new Error(`Unsupported platform ${target}. This release supports Linux and macOS on x64 and ARM64; Windows support is pending.`);
+  if (!packageName) throw new Error(`Unsupported platform ${target}. This release supports Linux, macOS, and Windows on x64 and ARM64.`);
   // `sf plugins link` loads this package straight from the repository. The
   // staged artifact is deliberately outside the npm allowlist, so a published
   // tarball can never take this branch. Prefer the staged build over an older

@@ -6,7 +6,7 @@ system mode.
 
 ## Install
 
-Install it through Salesforce CLI—the native binary for Linux or macOS is selected automatically. No Rust toolchain, compiler, or separate
+Install it through Salesforce CLI—the native binary for Linux, macOS, or Windows is selected automatically. No Rust toolchain, compiler, or separate
 binary download is needed.
 
 ```sh
@@ -48,9 +48,9 @@ npm run test:integration
 
 The project intentionally has no `postinstall` compilation or executable
 download. Releases use precompiled optional native packages for Linux (GNU and
-musl; x64 and ARM64), macOS (Intel and Apple Silicon). Windows support is planned for a later release.
+musl; x64 and ARM64), macOS (Intel and Apple Silicon), and Windows (x64 and ARM64).
 
-## Local development (Linux x64)
+## Local development
 
 The engine rewrites native DML (`insert`, `update`, `upsert`, `delete`,
 `undelete`, and `merge`) without an explicit mode, adds `WITH SYSTEM_MODE` to
@@ -71,6 +71,10 @@ cd /path/to/a/salesforce-project
 sf apex system-mode fix --all --dry-run
 ```
 
+`npm run build:native` automatically selects the host platform and stages the
+native executable (`systemeame-native.exe` on Windows). Windows builds require
+the Visual Studio C++ build tools for the MSVC Rust toolchain.
+
 `npm run pack:local` also creates a host-native tarball pair for packaging
 inspection. The supported local test route is `sf plugins link .`. Use
 `--dry-run` first; the default scope only considers staged Apex files and never
@@ -90,7 +94,7 @@ apply ignore-file rules; writes are not atomic.
 ## Publishing
 
 Every push to `main` automatically reserves the next patch version, runs tests,
-builds the six Linux/macOS native packages, publishes them to npm, publishes the
+builds the eight Linux/macOS/Windows native packages, publishes them to npm, publishes the
 plugin last, checks installation with Salesforce CLI, and creates a GitHub Release.
 No manual version bump, tag, or environment approval is required.
 

@@ -36,6 +36,7 @@ test('staged scope rejects partial staging and never changes index', async (t) =
   const { dir, file } = fixture(t);
   const git = (...args) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8' });
   git('init', '--quiet');
+  git('config', 'core.autocrlf', 'false');
   git('add', 'force-app/Example.cls');
   const index = git('show', ':force-app/Example.cls');
   writeFileSync(file, source + '\n');
