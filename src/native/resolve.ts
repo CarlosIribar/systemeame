@@ -21,14 +21,12 @@ const packageForTarget: Record<string, string> = {
   'linux-arm64-musl': 'systemeame-linux-arm64-musl',
   'darwin-x64': 'systemeame-darwin-x64',
   'darwin-arm64': 'systemeame-darwin-arm64',
-  'win32-x64': 'systemeame-win32-x64',
-  'win32-arm64': 'systemeame-win32-arm64',
 };
 
 export function resolveNativeBinary(): string {
   const target = targetName();
   const packageName = packageForTarget[target];
-  if (!packageName) throw new Error(`Unsupported platform ${target}. See the systemeame support matrix.`);
+  if (!packageName) throw new Error(`Unsupported platform ${target}. This release supports Linux and macOS on x64 and ARM64; Windows support is pending.`);
   try {
     const manifest = require.resolve(`${packageName}/package.json`);
     const binary = join(dirname(manifest), 'bin', process.platform === 'win32' ? 'systemeame-native.exe' : 'systemeame-native');

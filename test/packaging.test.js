@@ -16,7 +16,9 @@ test('published plugin contains runtime files only', () => {
 
 test('all native dependencies have matching versions and metadata', () => {
   const root = JSON.parse(readFileSync('package.json', 'utf8'));
-  assert.equal(Object.keys(root.optionalDependencies).length, 8);
+  assert.equal(Object.keys(root.optionalDependencies).length, 6);
+  assert.deepEqual(root.os, ['linux', 'darwin']);
+  assert.ok(!Object.keys(root.optionalDependencies).some((name) => name.includes('win32')));
   for (const [name, version] of Object.entries(root.optionalDependencies)) {
     const native = JSON.parse(readFileSync(`npm/${name}/package.json`, 'utf8'));
     assert.equal(native.name, name);

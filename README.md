@@ -6,8 +6,7 @@ system mode.
 
 ## Install
 
-Install it through Salesforce CLI—the native binary for Linux, macOS, or
-Windows is selected automatically. No Rust toolchain, compiler, or separate
+Install it through Salesforce CLI—the native binary for Linux or macOS is selected automatically. No Rust toolchain, compiler, or separate
 binary download is needed.
 
 ```sh
@@ -49,12 +48,11 @@ npm run test:integration
 
 The project intentionally has no `postinstall` compilation or executable
 download. Releases use precompiled optional native packages for Linux (GNU and
-musl; x64 and ARM64), macOS (Intel and Apple Silicon), and Windows (x64 and
-ARM64).
+musl; x64 and ARM64), macOS (Intel and Apple Silicon). Windows support is planned for a later release.
 
 ## Local development (Linux x64)
 
-Version 0.1.0 rewrites native DML (`insert`, `update`, `upsert`, `delete`,
+The initial release rewrites native DML (`insert`, `update`, `upsert`, `delete`,
 `undelete`, and `merge`) without an explicit mode, and appends
 `System.AccessLevel.SYSTEM_MODE` to one-argument `Database.query(...)` calls.
 It preserves calls with an existing access-level argument and query arguments
@@ -87,19 +85,25 @@ apply ignore-file rules; writes are not atomic.
 
 ## Publishing
 
-Pushing a version tag, such as `v0.1.0`, runs the release workflow. It builds
-and validates all eight native packages, publishes them first through npm Trusted
-Publishing, publishes the plugin last, smoke-tests `sf plugins install`, and
-creates a GitHub Release. The `npm-release` environment requires owner approval.
-Configure npm Trusted Publishing for the root package and all eight optional
-native packages with owner `CarlosIribar`, repository `systemeame`, workflow
-`release.yml`, and environment `npm-release`.
+Every push to `main` automatically reserves the next patch version, runs tests,
+builds the six Linux/macOS native packages, publishes them to npm, publishes the
+plugin last, checks installation with Salesforce CLI, and creates a GitHub Release.
+No manual version bump, tag, or environment approval is required.
 
-Manual workflow runs build and verify packages without publishing. For the first
-release, push the version tag and leave the publish job awaiting environment
-approval. Download its `release-packages` artifact and publish the eight native
-packages before the root package using an authenticated npm session
-(`npm publish <tarball> --access public --provenance=false`). Configure Trusted
-Publishing, then approve the waiting job. It checks registry integrity and skips
-identical packages already published; mismatching contents fail. Keep the original
-workflow artifacts for retries. No npm token is stored in GitHub.
+The workflow creates a tagged release commit containing synchronized npm and Rust
+versions. It leaves `main` untouched, so the release bot cannot create a publish
+loop. The `v*` tags are immutable; a retry for the same source commit reuses its
+reserved version. Failed releases may leave gaps in version numbers. Pushes share
+one release concurrency group with a queue of up to 100 pending runs, so releases
+execute one at a time without replacing earlier pending pushes.
+
+A higher version committed in `package.json` establishes a new minimum (for
+example, `0.2.0` for a minor release). Otherwise the next patch is automatic.
+Manual workflow runs on `main` retry that source commit's release.
+
+npm Trusted Publishing is configured per package for owner `CarlosIribar`,
+repository `systemeame`, workflow `release.yml`, environment `npm-release`.
+The environment permits only `main`. No npm token is stored in GitHub.
+A newly introduced package requires a one-time owner-authenticated initial
+publication before its Trusted Publisher can be configured. Existing versions
+are skipped only when their registry integrity matches the build artifact.

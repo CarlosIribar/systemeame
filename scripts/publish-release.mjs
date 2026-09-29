@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 // Verify every archive before publishing anything. Native packages come first.
 execFileSync(process.execPath, ['scripts/verify-release.mjs'], { stdio: 'inherit' });
 const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
-assert.equal(process.env.GITHUB_REF_NAME, `v${pkg.version}`);
+assert.equal(process.env.RELEASE_TAG, `v${pkg.version}`);
 for (const name of [...Object.keys(pkg.optionalDependencies).sort(), pkg.name]) {
   const archive = `./release/${name}-${pkg.version}.tgz`;
   const result = spawnSync('npm', ['view', `${name}@${pkg.version}`, 'dist.integrity', '--json'], { encoding: 'utf8' });

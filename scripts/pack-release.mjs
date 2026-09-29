@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdir, readdir, rm } from 'node:fs/promises';
+import { mkdir, readFile, rm } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -15,8 +15,7 @@ const pack = (directory) => execFileSync(npm, ['pack', '--ignore-scripts', '--pa
   env: { ...process.env, npm_config_cache: '/tmp/systemeame-npm-cache' },
 });
 
-for (const entry of await readdir(join(root, 'npm'), { withFileTypes: true })) {
-  if (entry.isDirectory()) pack(join(root, 'npm', entry.name));
-}
+const manifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
+for (const name of Object.keys(manifest.optionalDependencies)) pack(join(root, 'npm', name));
 pack(root);
 console.log(`Release tarballs are ready in ${output}`);
