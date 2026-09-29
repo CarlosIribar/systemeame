@@ -27,19 +27,20 @@ export function resolveNativeBinary(): string {
   const target = targetName();
   const packageName = packageForTarget[target];
   if (!packageName) throw new Error(`Unsupported platform ${target}. This release supports Linux and macOS on x64 and ARM64; Windows support is pending.`);
-  try {
-    const manifest = require.resolve(`${packageName}/package.json`);
-    const binary = join(dirname(manifest), 'bin', process.platform === 'win32' ? 'systemeame-native.exe' : 'systemeame-native');
-    if (existsSync(binary)) return binary;
-  } catch { /* produce one actionable error below */ }
   // `sf plugins link` loads this package straight from the repository. The
   // staged artifact is deliberately outside the npm allowlist, so a published
-  // tarball can never take this branch. It makes local Salesforce-project
+  // tarball can never take this branch. Prefer the staged build over an older
+  // optional dependency installed by `sf plugins link`. It makes local Salesforce-project
   // smoke tests possible without pretending that a registry release exists.
   const linkedBinary = join(
     dirname(dirname(dirname(fileURLToPath(import.meta.url)))),
     'npm', packageName, 'bin', process.platform === 'win32' ? 'systemeame-native.exe' : 'systemeame-native',
   );
   if (existsSync(linkedBinary)) return linkedBinary;
+  try {
+    const manifest = require.resolve(`${packageName}/package.json`);
+    const binary = join(dirname(manifest), 'bin', process.platform === 'win32' ? 'systemeame-native.exe' : 'systemeame-native');
+    if (existsSync(binary)) return binary;
+  } catch { /* produce one actionable error below */ }
   throw new Error(`The native package ${packageName} is missing or incomplete. Reinstall systemeame without omitting optional dependencies.`);
 }

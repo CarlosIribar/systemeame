@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Add explicit system mode to static SOQL, including multiline queries, binds,
+  loops, and queries with ordering, limits, or subqueries.
+- Preserve existing access modes and report incompatible WITH clauses for review.
+
 ## 0.1.1
 
 - Initial Salesforce CLI plugin with a Rust parsing engine.

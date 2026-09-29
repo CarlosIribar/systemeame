@@ -52,12 +52,16 @@ musl; x64 and ARM64), macOS (Intel and Apple Silicon). Windows support is planne
 
 ## Local development (Linux x64)
 
-The initial release rewrites native DML (`insert`, `update`, `upsert`, `delete`,
-`undelete`, and `merge`) without an explicit mode, and appends
+The engine rewrites native DML (`insert`, `update`, `upsert`, `delete`,
+`undelete`, and `merge`) without an explicit mode, adds `WITH SYSTEM_MODE` to
+static bracketed SOQL queries, and appends
 `System.AccessLevel.SYSTEM_MODE` to one-argument `Database.query(...)` calls.
 It preserves calls with an existing access-level argument and query arguments
-containing `WITH USER_MODE` or `WITH SYSTEM_MODE`. Other query and `Database.*`
-rewrites are not implemented.
+containing `WITH USER_MODE` or `WITH SYSTEM_MODE`. Static SOQL preserves explicit
+modes, adds the clause only to the outer query,
+and places it before `GROUP BY`, `ORDER BY`, and `LIMIT`. Queries with a different
+existing `WITH` clause remain unchanged with an `UNSUPPORTED_SOQL_WITH` diagnostic.
+SOSL and other `Database.*` rewrites are not implemented.
 
 ```sh
 npm ci
@@ -78,9 +82,9 @@ Adding system mode changes execution policy; it is not cosmetic formatting. The
 tool will not alter sharing declarations, create credentials, or contact a
 Salesforce org. This is an early release: changes have not been compilation-tested
 in a Salesforce org. Review the diff and run your Apex tests before deployment.
-Static SOQL/SOSL rewriting, API-version checks, and symbol resolution for shadowed
-`Database` names are not implemented. Some valid Apex (including static queries
-with `WITH USER_MODE`) may be rejected by the parser. Project-wide scope does not
+SOSL rewriting, API-version checks, and symbol resolution for shadowed
+`Database` names are not implemented. Some valid Apex may be rejected by the parser.
+Project-wide scope does not
 apply ignore-file rules; writes are not atomic.
 
 ## Publishing
