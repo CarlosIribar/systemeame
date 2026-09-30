@@ -100,6 +100,10 @@ Every push to `main` automatically reserves the next patch version, runs tests,
 builds the eight Linux/macOS/Windows native packages, publishes them to npm, publishes the
 plugin last, checks installation with Salesforce CLI, and creates a GitHub Release.
 No manual version bump, tag, or environment approval is required.
+Tests and native builds run in parallel, with dependency caches reused across runs.
+Publication waits for every check to pass and for npm to serve every package.
+The workflow starts on each push; build time and npm propagation mean the release
+is automatic, not instantaneous.
 
 The workflow creates a tagged release commit containing synchronized npm and Rust
 versions. It leaves `main` untouched, so the release bot cannot create a publish
@@ -114,7 +118,8 @@ Manual workflow runs on `main` retry that source commit's release.
 
 npm Trusted Publishing is configured per package for owner `CarlosIribar`,
 repository `systemeame`, workflow `release.yml`, environment `npm-release`.
-The environment permits only `main`. No npm token is stored in GitHub.
+This includes both scoped Windows packages. The environment permits only `main`.
+The workflow uses GitHub Actions OIDC for every package and needs no npm token.
 A newly introduced package requires a one-time owner-authenticated initial
 publication before its Trusted Publisher can be configured. Existing versions
 are skipped only when their registry integrity matches the build artifact.

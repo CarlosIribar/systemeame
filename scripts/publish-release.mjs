@@ -18,13 +18,8 @@ for (const name of [...Object.keys(pkg.optionalDependencies).sort(), pkg.name]) 
   } else {
     const error = JSON.parse(result.stdout || '{}');
     if (error.error?.code !== 'E404') throw new Error(result.stderr || result.stdout);
-    // New scoped packages cannot have a trusted publisher until their first
-    // publish. Use the temporary bootstrap token only for that first publish;
-    // existing packages continue to use GitHub Actions OIDC.
-    const env = name.startsWith('@carlosiribar/') && process.env.NPM_BOOTSTRAP_TOKEN
-      ? { ...process.env, NODE_AUTH_TOKEN: process.env.NPM_BOOTSTRAP_TOKEN,
-        NPM_CONFIG_USERCONFIG: process.env.NPM_BOOTSTRAP_CONFIG }
-      : process.env;
-    execFileSync('npm', ['publish', archive, '--access', 'public', '--provenance'], { stdio: 'inherit', env });
+    // All nine packages trust this workflow through GitHub Actions OIDC.
+    // Do not inject a token: it can override OIDC and require interactive 2FA.
+    execFileSync('npm', ['publish', archive, '--access', 'public', '--provenance'], { stdio: 'inherit' });
   }
 }

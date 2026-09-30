@@ -39,7 +39,7 @@ jobs:
       ref: ${{ needs.prepare.outputs.tag }}
 
   native:
-    needs: [prepare, checks]
+    needs: prepare
     name: Native ${{ matrix.id }}
     strategy:
       fail-fast: false
@@ -64,9 +64,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
       - uses: dtolnay/rust-toolchain@1.98.0
         with:
           targets: ${{ matrix.rust-target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: native-${{ matrix.id }}
       - if: contains(matrix.id, 'musl')
         run: |
           sudo apt-get update
@@ -107,7 +111,7 @@ jobs:
           if-no-files-found: error
 
   packages:
-    needs: [prepare, native]
+    needs: [prepare, checks, native]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -150,16 +154,11 @@ jobs:
         with:
           name: release-packages
           path: release
-      - name: Configure npm bootstrap authentication
-        run: |
-          printf '%s\n' '//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}' > "$RUNNER_TEMP/npm-bootstrap.npmrc"
-          echo "NPM_BOOTSTRAP_CONFIG=$RUNNER_TEMP/npm-bootstrap.npmrc" >> "$GITHUB_ENV"
       - run: npm install --global npm@11
       - run: node scripts/verify-release.mjs
       - run: node scripts/publish-release.mjs
         env:
           RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
-          NPM_BOOTSTRAP_TOKEN: ${{ secrets.NPM_TOKEN }}
       - run: node scripts/wait-for-release.mjs
       - run: |
           npm install --global @salesforce/cli

@@ -6,14 +6,15 @@ import { setTimeout } from 'node:timers/promises';
 // Wait for every optional package too, or installation can silently omit it.
 const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
 const pending = new Set([...Object.keys(pkg.optionalDependencies), pkg.name]);
-for (let attempt = 0; attempt < 20 && pending.size; attempt++) {
+// Registry propagation can exceed five minutes, especially for new packages.
+for (let attempt = 0; attempt < 60 && pending.size; attempt++) {
   for (const name of pending) {
     const result = spawnSync('npm', ['view', `${name}@${pkg.version}`, 'version', '--json', '--prefer-online', '--fetch-retries=0'], {
       encoding: 'utf8', timeout: 15_000,
     });
     if (result.status === 0 && result.stdout.trim() === JSON.stringify(pkg.version)) pending.delete(name);
   }
-  if (pending.size && attempt < 19) {
+  if (pending.size && attempt < 59) {
     console.log(`Waiting for npm to serve ${pkg.version}: ${[...pending].join(', ')}`);
     await setTimeout(15_000);
   }
