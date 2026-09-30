@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Treat inline `Database.getQueryLocator` and its SOQL as one access-mode operation,
+  preventing simultaneous inner/outer mode insertion and repairing equal duplicates.
+- Parse dynamic literal query clauses, preserve comments and explicit mode expressions,
+  and report unresolved query text or ambiguous DML overloads instead of blindly
+  appending a potentially duplicate access level.
+- Add regression coverage for exclusive modes, duplicate repair, conflicts, WithBinds,
+  nested operations, and idempotent check/fix behavior. Document hook validation rules.
+
 - Move Windows native packages to the `@carlosiribar` scope.
 
 - Add explicit `System.AccessLevel.SYSTEM_MODE` to supported `Database` DML,

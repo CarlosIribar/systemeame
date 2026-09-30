@@ -57,3 +57,45 @@ test('invalid UTF-8 is reported while valid files continue', async (t) => {
   assert.ok(result.result.diagnostics.some(({ code }) => code === 'INVALID_UTF8'));
   assert.deepEqual(readFileSync(file), Buffer.from([0xff]));
 });
+
+test('inline locator modes are exclusive, existing duplicates are repaired, and check agrees', async (t) => {
+  const { dir, file } = fixture(t);
+  const input = `public class Example {
+    Object run(Integer days) {
+      return Database.getQueryLocator(
+        [SELECT Id, Name FROM Account WHERE Age__c = :days WITH SYSTEM_MODE],
+        System.AccessLevel.SYSTEM_MODE
+      );
+    }
+    Object missing() { return Database.getQueryLocator([SELECT Id FROM Account]); }
+    Object explicitMode(System.AccessLevel mode) {
+      return Database.getQueryLocator([SELECT Id FROM Account], mode);
+    }
+  }`;
+  writeFileSync(file, input);
+  const request = { protocolVersion: 1, projectDir: dir, all: true };
+  assert.equal((await runNative({ ...request, check: true })).exitCode, 1);
+  assert.equal(readFileSync(file, 'utf8'), input);
+  const applied = await runNative(request);
+  assert.equal(applied.exitCode, 0);
+  assert.equal(applied.result.changedFiles, 1);
+  const fixed = readFileSync(file, 'utf8');
+  assert.match(fixed, /WHERE Age__c = :days WITH SYSTEM_MODE\]/);
+  assert.doesNotMatch(fixed, /System.AccessLevel.SYSTEM_MODE/);
+  assert.match(fixed, /getQueryLocator\(\[SELECT Id FROM Account WITH SYSTEM_MODE\]\)/);
+  assert.match(fixed, /getQueryLocator\(\[SELECT Id FROM Account\], mode\)/);
+  assert.equal((await runNative({ ...request, check: true })).exitCode, 0);
+  assert.equal((await runNative(request)).result.changedFiles, 0);
+  assert.equal(readFileSync(file, 'utf8'), fixed);
+});
+
+test('unresolved dynamic text requires review without inserting a mode', async (t) => {
+  const { dir, file } = fixture(t);
+  const input = 'class Example { Object run(String queryText) { return Database.query(queryText); } }';
+  writeFileSync(file, input);
+  const result = await runNative({ protocolVersion: 1, projectDir: dir, all: true });
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.result.changedFiles, 0);
+  assert.ok(result.result.diagnostics.some(({ code }) => code === 'DYNAMIC_QUERY_UNRESOLVED'));
+  assert.equal(readFileSync(file, 'utf8'), input);
+});
