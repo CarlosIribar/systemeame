@@ -1,6 +1,6 @@
 {
   "name": "systemeame-linux-x64-musl",
-  "version": "0.2.1",
+  "version": "0.2.3",
   "description": "Native Linux x64 musl binary for systemeame",
   "license": "MIT",
   "os": [
