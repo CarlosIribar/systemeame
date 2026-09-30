@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add explicit `System.AccessLevel.SYSTEM_MODE` to supported `Database` DML,
+  dynamic-query, and query-locator overloads.
+
 - Report total processing time in seconds in the command summary and JSON output.
 
 - Build and package Windows x64 and ARM64 executables with Windows CI coverage.

@@ -37,7 +37,7 @@ pub fn analyze(source: &str) -> Analysis {
     }
     let mut analysis = Analysis::default();
     collect_native_dml(root, &mut analysis.edits);
-    collect_database_query(root, source, &mut analysis.edits);
+    collect_database_access_levels(root, source, &mut analysis.edits);
     collect_static_soql(root, source, &mut analysis);
     analysis
 }
@@ -119,36 +119,143 @@ fn collect_native_dml(node: tree_sitter::Node<'_>, edits: &mut Vec<Edit>) {
     }
 }
 
-/// Adds an explicit AccessLevel to the one-argument `Database.query` overload.
+/// Adds an explicit AccessLevel to supported `Database` overloads.
 ///
 /// The call shape is identified by grammar fields, never by a source-wide text
 /// search. A one-argument dynamic query is deliberately included: callers have
 /// chosen an explicit system-execution policy for dynamic query text. Direct
-/// query literals that already declare a user/system clause are left alone.
-fn collect_database_query(node: tree_sitter::Node<'_>, source: &str, edits: &mut Vec<Edit>) {
+/// Query literals that already declare a user/system clause are left alone
+/// because the query text already owns the access policy.
+fn collect_database_access_levels(
+    node: tree_sitter::Node<'_>,
+    source: &str,
+    edits: &mut Vec<Edit>,
+) {
     if node.kind() == "method_invocation"
         && node_text(node.child_by_field_name("object"), source)
             .is_some_and(|object| object.eq_ignore_ascii_case("Database"))
-        && node_text(node.child_by_field_name("name"), source)
-            .is_some_and(|name| name.eq_ignore_ascii_case("query"))
+        && let Some(name) = node_text(node.child_by_field_name("name"), source)
         && let Some(arguments) = node.child_by_field_name("arguments")
-        && arguments.named_child_count() == 1
-        && !argument_declares_query_mode(arguments.named_child(0), source)
+        && let Some(rule_id) = database_access_level_rule(name, arguments, source)
     {
         // `argument_list` spans the delimiters; this appends to the existing
-        // argument without changing any source bytes inside the query text.
+        // arguments without changing any source bytes inside them.
         edits.push(Edit {
             start_byte: arguments.end_byte() - 1,
             end_byte: arguments.end_byte() - 1,
             replacement: ", System.AccessLevel.SYSTEM_MODE".to_owned(),
-            rule_id: "database-query",
+            rule_id,
         });
     }
     for index in 0..node.child_count() {
         if let Some(child) = node.child(index) {
-            collect_database_query(child, source, edits);
+            collect_database_access_levels(child, source, edits);
         }
     }
+}
+
+fn database_access_level_rule(
+    name: &str,
+    arguments: tree_sitter::Node<'_>,
+    source: &str,
+) -> Option<&'static str> {
+    let argument_count = arguments.named_child_count();
+    if argument_count == 0 || arguments_have_access_level(arguments, source) {
+        return None;
+    }
+
+    let is_query_method = [
+        "query",
+        "countQuery",
+        "getQueryLocator",
+        "queryWithBinds",
+        "countQueryWithBinds",
+        "getQueryLocatorWithBinds",
+    ]
+    .iter()
+    .any(|operation| name.eq_ignore_ascii_case(operation));
+    if is_query_method && argument_declares_query_mode(arguments.named_child(0), source) {
+        return None;
+    }
+
+    if name.eq_ignore_ascii_case("query") {
+        return (argument_count == 1).then_some("database-query");
+    }
+
+    if name.eq_ignore_ascii_case("getQueryLocator") {
+        return (argument_count == 1).then_some("database-get-query-locator");
+    }
+
+    if ["countQuery"]
+        .iter()
+        .any(|operation| name.eq_ignore_ascii_case(operation))
+    {
+        return (argument_count == 1).then_some("database-query");
+    }
+
+    if [
+        "queryWithBinds",
+        "countQueryWithBinds",
+        "getQueryLocatorWithBinds",
+    ]
+    .iter()
+    .any(|operation| name.eq_ignore_ascii_case(operation))
+    {
+        return (argument_count == 2).then_some("database-query");
+    }
+
+    // These are the dynamic counterparts of Apex's native DML statements.
+    // The non-AccessLevel overloads have at most the following arities; adding
+    // a trailing argument selects the corresponding AccessLevel overload.
+    let is_immediate_or_async = [
+        "insertAsync",
+        "insertImmediate",
+        "updateAsync",
+        "updateImmediate",
+        "deleteAsync",
+        "deleteImmediate",
+    ]
+    .iter()
+    .any(|operation| name.eq_ignore_ascii_case(operation));
+    let max_non_access_level_arity =
+        if name.eq_ignore_ascii_case("upsert") || name.eq_ignore_ascii_case("merge") {
+            3
+        } else if name.eq_ignore_ascii_case("convertLead") {
+            2
+        } else if [
+            "insert",
+            "update",
+            "delete",
+            "undelete",
+            "insertAsync",
+            "insertImmediate",
+            "updateAsync",
+            "updateImmediate",
+            "deleteAsync",
+            "deleteImmediate",
+        ]
+        .iter()
+        .any(|operation| name.eq_ignore_ascii_case(operation))
+        {
+            if is_immediate_or_async { 1 } else { 2 }
+        } else {
+            return None;
+        };
+
+    (argument_count <= max_non_access_level_arity).then_some("database-dml")
+}
+
+fn arguments_have_access_level(arguments: tree_sitter::Node<'_>, source: &str) -> bool {
+    let mut cursor = arguments.walk();
+    arguments.named_children(&mut cursor).any(|argument| {
+        node_text(Some(argument), source).is_some_and(|text| {
+            let normalized = text
+                .chars()
+                .filter(|character| !character.is_whitespace())
+                .collect::<String>();
+            normalized.to_ascii_uppercase().contains("ACCESSLEVEL.")
+        })
+    })
 }
 
 fn node_text<'a>(node: Option<tree_sitter::Node<'_>>, source: &'a str) -> Option<&'a str> {
@@ -338,6 +445,75 @@ mod tests {
     fn preserves_existing_database_query_modes() {
         let source = "public class Example { void run() { List<Account> a = Database.query('SELECT Id FROM Account WITH USER_MODE'); List<Account> b = Database.query('SELECT Id FROM Account', System.AccessLevel.SYSTEM_MODE); } }";
         assert!(analyze(source).edits.is_empty());
+    }
+
+    #[test]
+    fn plans_access_levels_for_database_dml_and_query_locator() {
+        let source = "public class Example { void run(List<Account> rows, Account master, Account duplicate) { Database.insert(rows); Database.update(rows, false); Database.upsert(rows, Account.External_Id__c, false); Database.delete(rows); Database.undelete(rows, true); Database.merge(master, duplicate); Database.getQueryLocator('SELECT Id FROM Account'); } }";
+        let analysis = analyze(source);
+        assert_eq!(analysis.edits.len(), 7, "{:?}", analysis.diagnostics);
+        assert_eq!(
+            analysis
+                .edits
+                .iter()
+                .filter(|edit| edit.rule_id == "database-dml")
+                .count(),
+            6
+        );
+        assert_eq!(
+            analysis
+                .edits
+                .iter()
+                .filter(|edit| edit.rule_id == "database-get-query-locator")
+                .count(),
+            1
+        );
+
+        let fixed = crate::apply_edits(source, &analysis.edits).unwrap();
+        for expected in [
+            "Database.insert(rows, System.AccessLevel.SYSTEM_MODE)",
+            "Database.update(rows, false, System.AccessLevel.SYSTEM_MODE)",
+            "Database.upsert(rows, Account.External_Id__c, false, System.AccessLevel.SYSTEM_MODE)",
+            "Database.delete(rows, System.AccessLevel.SYSTEM_MODE)",
+            "Database.undelete(rows, true, System.AccessLevel.SYSTEM_MODE)",
+            "Database.merge(master, duplicate, System.AccessLevel.SYSTEM_MODE)",
+            "Database.getQueryLocator('SELECT Id FROM Account', System.AccessLevel.SYSTEM_MODE)",
+        ] {
+            assert!(fixed.contains(expected), "{fixed}");
+        }
+        assert!(analyze(&fixed).edits.is_empty(), "{fixed}");
+    }
+
+    #[test]
+    fn preserves_existing_database_dml_and_query_locator_access_levels() {
+        let source = "public class Example { void run(List<Account> rows) { Database.insert(rows, System.AccessLevel.USER_MODE); Database.update(rows, false, System.AccessLevel.SYSTEM_MODE); Database.upsert(rows, Account.External_Id__c, false, System.AccessLevel.USER_MODE); Database.getQueryLocator('SELECT Id FROM Account', System.AccessLevel.SYSTEM_MODE); Database.getQueryLocator('SELECT Id FROM Account WITH USER_MODE'); } }";
+        assert!(analyze(source).diagnostics.is_empty());
+        assert!(analyze(source).edits.is_empty());
+    }
+
+    #[test]
+    fn plans_access_levels_for_other_supported_database_overloads() {
+        let source = "public class Example { void run(List<Account> rows, Database.LeadConvert lead, Map<String, Object> binds) { Database.convertLead(lead, false); Database.insertImmediate(rows); Database.updateAsync(rows); Database.deleteImmediate(rows); Database.countQuery('SELECT COUNT() FROM Account'); Database.queryWithBinds('SELECT Id FROM Account', binds); Database.getQueryLocatorWithBinds('SELECT Id FROM Account', binds); } }";
+        let analysis = analyze(source);
+        assert!(
+            analysis.diagnostics.is_empty(),
+            "{:?}",
+            analysis.diagnostics
+        );
+        assert_eq!(analysis.edits.len(), 7);
+        let fixed = crate::apply_edits(source, &analysis.edits).unwrap();
+        for expected in [
+            "Database.convertLead(lead, false, System.AccessLevel.SYSTEM_MODE)",
+            "Database.insertImmediate(rows, System.AccessLevel.SYSTEM_MODE)",
+            "Database.updateAsync(rows, System.AccessLevel.SYSTEM_MODE)",
+            "Database.deleteImmediate(rows, System.AccessLevel.SYSTEM_MODE)",
+            "Database.countQuery('SELECT COUNT() FROM Account', System.AccessLevel.SYSTEM_MODE)",
+            "Database.queryWithBinds('SELECT Id FROM Account', binds, System.AccessLevel.SYSTEM_MODE)",
+            "Database.getQueryLocatorWithBinds('SELECT Id FROM Account', binds, System.AccessLevel.SYSTEM_MODE)",
+        ] {
+            assert!(fixed.contains(expected), "{fixed}");
+        }
+        assert!(analyze(&fixed).edits.is_empty(), "{fixed}");
     }
 
     #[test]

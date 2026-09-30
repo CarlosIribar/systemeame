@@ -57,10 +57,11 @@ musl; x64 and ARM64), macOS (Intel and Apple Silicon), and Windows (x64 and ARM6
 The engine rewrites native DML (`insert`, `update`, `upsert`, `delete`,
 `undelete`, and `merge`) without an explicit mode, adds `WITH SYSTEM_MODE` to
 static bracketed SOQL queries, and appends
-`System.AccessLevel.SYSTEM_MODE` to one-argument `Database.query(...)` calls.
-It preserves calls with an existing access-level argument and query arguments
-containing `WITH USER_MODE` or `WITH SYSTEM_MODE`. Static SOQL preserves explicit
-modes, adds the clause only to the outer query,
+`System.AccessLevel.SYSTEM_MODE` to eligible `Database` DML calls,
+`Database.query(...)`, and `Database.getQueryLocator(...)` calls. It preserves
+calls with an existing access-level argument and query arguments containing
+`WITH USER_MODE` or `WITH SYSTEM_MODE`. Static SOQL preserves explicit modes,
+adds the clause only to the outer query,
 and places it before `GROUP BY`, `ORDER BY`, and `LIMIT`. Queries with a different
 existing `WITH` clause remain unchanged with an `UNSUPPORTED_SOQL_WITH` diagnostic.
 SOSL and other `Database.*` rewrites are not implemented.
