@@ -95,8 +95,11 @@ jobs:
           sf plugins link .
           sf apex system-mode fix --help
       - run: mkdir -p release/${{ matrix.id }}
-      - run: npm pack --ignore-scripts --pack-destination "${{ github.workspace }}/release/${{ matrix.id }}"
-        working-directory: npm/systemeame-${{ matrix.id }}
+      - run: |
+          package="systemeame-${{ matrix.id }}"
+          if [[ "$package" == systemeame-win32-* ]]; then package="@carlosiribar/$package"; fi
+          cd "npm/$package"
+          npm pack --ignore-scripts --pack-destination "${{ github.workspace }}/release/${{ matrix.id }}"
       - uses: actions/upload-artifact@v4
         with:
           name: native-${{ matrix.id }}
