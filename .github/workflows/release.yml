@@ -80,7 +80,9 @@ jobs:
       - run: node scripts/verify-packages.mjs --target ${{ matrix.id }}
       - name: Smoke-test native protocol
         run: |
-          printf '%s' '{"protocolVersion":1,"source":"public class Example { void run(Account a) { insert a; } }"}' | npm/systemeame-${{ matrix.id }}/bin/systemeame-native${{ matrix.extension }} > native-result.json
+          package="systemeame-${{ matrix.id }}"
+          if [[ "$package" == systemeame-win32-* ]]; then package="@carlosiribar/$package"; fi
+          printf '%s' '{"protocolVersion":1,"source":"public class Example { void run(Account a) { insert a; } }"}' | "npm/$package/bin/systemeame-native${{ matrix.extension }}" > native-result.json
           node -e 'const r = require("./native-result.json"); if (r.exitCode !== 0 || r.result.proposedEdits !== 1) process.exit(1)'
       - name: Test Windows plugin integration
         if: startsWith(matrix.id, 'win32')
