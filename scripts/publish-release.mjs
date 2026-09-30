@@ -22,7 +22,8 @@ for (const name of [...Object.keys(pkg.optionalDependencies).sort(), pkg.name]) 
     // publish. Use the temporary bootstrap token only for that first publish;
     // existing packages continue to use GitHub Actions OIDC.
     const env = name.startsWith('@carlosiribar/') && process.env.NPM_BOOTSTRAP_TOKEN
-      ? { ...process.env, NODE_AUTH_TOKEN: process.env.NPM_BOOTSTRAP_TOKEN }
+      ? { ...process.env, NODE_AUTH_TOKEN: process.env.NPM_BOOTSTRAP_TOKEN,
+        NPM_CONFIG_USERCONFIG: process.env.NPM_BOOTSTRAP_CONFIG }
       : process.env;
     execFileSync('npm', ['publish', archive, '--access', 'public', '--provenance'], { stdio: 'inherit', env });
   }

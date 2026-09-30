@@ -150,6 +150,10 @@ jobs:
         with:
           name: release-packages
           path: release
+      - name: Configure npm bootstrap authentication
+        run: |
+          printf '%s\n' '//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}' > "$RUNNER_TEMP/npm-bootstrap.npmrc"
+          echo "NPM_BOOTSTRAP_CONFIG=$RUNNER_TEMP/npm-bootstrap.npmrc" >> "$GITHUB_ENV"
       - run: npm install --global npm@11
       - run: node scripts/verify-release.mjs
       - run: node scripts/publish-release.mjs
