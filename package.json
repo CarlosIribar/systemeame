@@ -1,6 +1,6 @@
 {
   "name": "systemeame",
-  "version": "0.2.1",
+  "version": "0.2.4",
   "description": "Salesforce CLI plugin for explicit Apex system execution modes",
   "license": "MIT",
   "author": "Carlos Iribar",
@@ -51,14 +51,14 @@
     "@salesforce/sf-plugins-core": "^12.1.0"
   },
   "optionalDependencies": {
-    "systemeame-darwin-arm64": "0.2.1",
-    "systemeame-darwin-x64": "0.2.1",
-    "systemeame-linux-arm64-gnu": "0.2.1",
-    "systemeame-linux-arm64-musl": "0.2.1",
-    "systemeame-linux-x64-gnu": "0.2.1",
-    "systemeame-linux-x64-musl": "0.2.1",
-    "@carlosiribar/systemeame-win32-x64": "0.2.1",
-    "@carlosiribar/systemeame-win32-arm64": "0.2.1"
+    "systemeame-darwin-arm64": "0.2.4",
+    "systemeame-darwin-x64": "0.2.4",
+    "systemeame-linux-arm64-gnu": "0.2.4",
+    "systemeame-linux-arm64-musl": "0.2.4",
+    "systemeame-linux-x64-gnu": "0.2.4",
+    "systemeame-linux-x64-musl": "0.2.4",
+    "@carlosiribar/systemeame-win32-x64": "0.2.4",
+    "@carlosiribar/systemeame-win32-arm64": "0.2.4"
   },
   "devDependencies": {
     "@types/node": "^22.15.3",
