@@ -1,6 +1,6 @@
 {
   "name": "systemeame-linux-x64-gnu",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Native Linux x64 GNU binary for systemeame",
   "license": "MIT",
   "os": [

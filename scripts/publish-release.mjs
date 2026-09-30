@@ -7,8 +7,9 @@ import assert from 'node:assert/strict';
 execFileSync(process.execPath, ['scripts/verify-release.mjs'], { stdio: 'inherit' });
 const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
 assert.equal(process.env.RELEASE_TAG, `v${pkg.version}`);
+const archiveName = (name) => `${name.replace(/^@/, '').replace('/', '-')}-${pkg.version}.tgz`;
 for (const name of [...Object.keys(pkg.optionalDependencies).sort(), pkg.name]) {
-  const archive = `./release/${name}-${pkg.version}.tgz`;
+  const archive = `./release/${archiveName(name)}`;
   const result = spawnSync('npm', ['view', `${name}@${pkg.version}`, 'dist.integrity', '--json'], { encoding: 'utf8' });
   if (result.status === 0) {
     const integrity = `sha512-${createHash('sha512').update(readFileSync(archive)).digest('base64')}`;
@@ -17,6 +18,12 @@ for (const name of [...Object.keys(pkg.optionalDependencies).sort(), pkg.name]) 
   } else {
     const error = JSON.parse(result.stdout || '{}');
     if (error.error?.code !== 'E404') throw new Error(result.stderr || result.stdout);
-    execFileSync('npm', ['publish', archive, '--access', 'public', '--provenance'], { stdio: 'inherit' });
+    // New scoped packages cannot have a trusted publisher until their first
+    // publish. Use the temporary bootstrap token only for that first publish;
+    // existing packages continue to use GitHub Actions OIDC.
+    const env = name.startsWith('@carlosiribar/') && process.env.NPM_BOOTSTRAP_TOKEN
+      ? { ...process.env, NODE_AUTH_TOKEN: process.env.NPM_BOOTSTRAP_TOKEN }
+      : process.env;
+    execFileSync('npm', ['publish', archive, '--access', 'public', '--provenance'], { stdio: 'inherit', env });
   }
 }

@@ -19,8 +19,8 @@ const packageForTarget: Record<string, string> = {
   'linux-arm64-gnu': 'systemeame-linux-arm64-gnu',
   'linux-x64-musl': 'systemeame-linux-x64-musl',
   'linux-arm64-musl': 'systemeame-linux-arm64-musl',
-  'win32-x64': 'systemeame-win32-x64',
-  'win32-arm64': 'systemeame-win32-arm64',
+  'win32-x64': '@carlosiribar/systemeame-win32-x64',
+  'win32-arm64': '@carlosiribar/systemeame-win32-arm64',
   'darwin-x64': 'systemeame-darwin-x64',
   'darwin-arm64': 'systemeame-darwin-arm64',
 };

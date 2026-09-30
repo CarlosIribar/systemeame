@@ -27,8 +27,13 @@ if (!target || !targets[target]) {
 }
 const details = targets[target];
 
+const packageNameForTarget = {
+  'win32-x64': '@carlosiribar/systemeame-win32-x64',
+  'win32-arm64': '@carlosiribar/systemeame-win32-arm64',
+};
+
 const source = sourceArgument ? join(root, sourceArgument) : join(root, 'target', 'release', details.binary);
-const packageDirectory = join(root, 'npm', `systemeame-${target}`);
+const packageDirectory = join(root, 'npm', packageNameForTarget[target] ?? `systemeame-${target}`);
 const destination = join(packageDirectory, 'bin', details.binary);
 try {
   await stat(source);

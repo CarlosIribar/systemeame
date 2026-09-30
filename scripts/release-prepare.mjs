@@ -18,7 +18,9 @@ const lock = await readJson('package-lock.json');
 lock.version = version;
 Object.assign(lock.packages[''], { version, optionalDependencies: pkg.optionalDependencies, os: pkg.os, cpu: pkg.cpu });
 for (const key of Object.keys(lock.packages)) {
-  if (key.startsWith('node_modules/systemeame-') && !pkg.optionalDependencies[key.slice('node_modules/'.length)]) delete lock.packages[key];
+  const packageName = key.slice('node_modules/'.length);
+  if ((packageName.startsWith('systemeame-') || packageName.startsWith('@carlosiribar/systemeame-'))
+    && !pkg.optionalDependencies[packageName]) delete lock.packages[key];
 }
 for (const name of Object.keys(pkg.optionalDependencies)) {
   const native = await readJson(`npm/${name}/package.json`);
@@ -27,8 +29,9 @@ for (const name of Object.keys(pkg.optionalDependencies)) {
   const previous = lock.packages[`node_modules/${name}`];
   // Own packages may not exist yet. Pin their version and platform from source;
   // never retain an integrity hash from a different release.
+  const tarballName = name.includes('/') ? name.slice(name.lastIndexOf('/') + 1) : name;
   lock.packages[`node_modules/${name}`] = {
-    version, resolved: `https://registry.npmjs.org/${name}/-/${name}-${version}.tgz`,
+    version, resolved: `https://registry.npmjs.org/${name}/-/${tarballName}-${version}.tgz`,
     ...(previous?.version === version && previous.integrity ? { integrity: previous.integrity } : {}),
     cpu: native.cpu, license: native.license, optional: true, os: native.os,
     ...(native.libc ? { libc: native.libc } : {}), bin: native.bin,

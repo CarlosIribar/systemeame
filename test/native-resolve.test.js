@@ -14,7 +14,7 @@ for (const arch of ['x64', 'arm64']) {
     writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
     const module = join(root, 'lib/native/resolve.js');
     copyFileSync('lib/native/resolve.js', module);
-    const name = `systemeame-win32-${arch}`;
+    const name = `@carlosiribar/systemeame-win32-${arch}`;
     const installed = join(root, 'node_modules', name);
     mkdirSync(join(installed, 'bin'), { recursive: true });
     writeFileSync(join(installed, 'package.json'), JSON.stringify({ name, version: '1.0.0' }));

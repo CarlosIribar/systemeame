@@ -150,6 +150,7 @@ jobs:
       - run: node scripts/publish-release.mjs
         env:
           RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+          NPM_BOOTSTRAP_TOKEN: ${{ secrets.NPM_TOKEN }}
       - run: node scripts/wait-for-release.mjs
       - run: |
           npm install --global @salesforce/cli

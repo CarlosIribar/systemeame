@@ -4,10 +4,11 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 const root = JSON.parse(readFileSync('package.json', 'utf8'));
+const archiveName = (pkg) => `${pkg.name.replace(/^@/, '').replace('/', '-')}-${root.version}.tgz`;
 const expected = [root, ...Object.keys(root.optionalDependencies).map((name) =>
   JSON.parse(readFileSync(join('npm', name, 'package.json'), 'utf8')))];
 const archives = readdirSync('release').filter((name) => name.endsWith('.tgz')).sort();
-assert.deepEqual(archives, expected.map((pkg) => `${pkg.name}-${root.version}.tgz`).sort());
+assert.deepEqual(archives, expected.map(archiveName).sort());
 const cargo = readFileSync('Cargo.toml', 'utf8');
 assert.match(cargo, new RegExp(`^version = "${root.version.replaceAll('.', '\\.')}"$`, 'm'));
 if (process.env.GITHUB_REF?.startsWith('refs/tags/')) {
@@ -15,7 +16,7 @@ if (process.env.GITHUB_REF?.startsWith('refs/tags/')) {
 }
 for (const pkg of expected) {
   assert.equal(pkg.version, root.version);
-  const file = join('release', `${pkg.name}-${pkg.version}.tgz`);
+  const file = join('release', archiveName(pkg));
   const manifest = JSON.parse(execFileSync('tar', ['-xOf', file, 'package/package.json'], { encoding: 'utf8' }));
   assert.equal(manifest.name, pkg.name);
   assert.equal(manifest.version, pkg.version);

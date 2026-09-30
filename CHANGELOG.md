@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Move Windows native packages to the `@carlosiribar` scope.
+
 - Add explicit `System.AccessLevel.SYSTEM_MODE` to supported `Database` DML,
   dynamic-query, and query-locator overloads.
 

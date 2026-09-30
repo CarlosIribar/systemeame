@@ -18,7 +18,11 @@ const platforms = {
 if (!platforms[target]) throw new Error(`Unknown target ${target}`);
 const [os, cpu, binaryName] = platforms[target];
 const rootPackage = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
-const packageDirectory = join(root, 'npm', `systemeame-${target}`);
+const packageNameForTarget = {
+  'win32-x64': '@carlosiribar/systemeame-win32-x64',
+  'win32-arm64': '@carlosiribar/systemeame-win32-arm64',
+};
+const packageDirectory = join(root, 'npm', packageNameForTarget[target] ?? `systemeame-${target}`);
 const nativePackage = JSON.parse(await readFile(join(packageDirectory, 'package.json'), 'utf8'));
 if (nativePackage.version !== rootPackage.version) throw new Error(`${nativePackage.name} version must equal the plugin version.`);
 if (nativePackage.os?.[0] !== os || nativePackage.cpu?.[0] !== cpu) throw new Error(`${nativePackage.name} has incorrect os/cpu metadata.`);
