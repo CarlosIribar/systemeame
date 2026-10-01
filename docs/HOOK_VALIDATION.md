@@ -19,12 +19,24 @@ multiline formatting, casing, and comments between tokens must not change result
 Subqueries inherit their outer query's policy. An independently evaluated query in
 a bind expression remains a separate operation.
 
-For dynamic queries, inspect only the query argument and the overload's access-level
-position. Parse resolved string literals/concatenations as SOQL; words in quoted
-WHERE values are not clauses. If runtime text is unknown, report that its policy
-cannot be verified; never claim it is missing or instruct someone to blindly append
-SYSTEM_MODE. `*WithBinds` requires a mode argument: do not fix a duplicate by deleting
-that required argument.
+For dynamic queries, add `System.AccessLevel.SYSTEM_MODE` if the access-level
+argument is absent in `query`, `countQuery`, `getQueryLocator`, and their
+`WithBinds` variants. Preserve existing arguments and all dynamic query text.
+Inspect only the direct query argument: parse literal strings and literal
+concatenations as SOQL; words in quoted WHERE values or comments are not clauses.
+Do not follow variable assignments or function implementations.
+
+A visible USER/SYSTEM clause together with the existing or proposed argument emits
+`CONFLICTING_QUERY_MODES` (Error), even when both modes are equal. Other visible
+WITH clauses, including SECURITY_ENFORCED, emit `UNSUPPORTED_SOQL_WITH` (Error)
+requiring compatibility review. Unknown text emits `DYNAMIC_QUERY_UNRESOLVED`
+(Warning) about a possible conflict, not a confirmed duplicate. Do not remove
+redundant arguments from dynamic calls, including required `WithBinds` arguments.
+
+Fixes are applied despite these diagnostics. Dry-run and check never write files;
+any diagnostic produces exit code 1, including warnings. Repeated runs preserve
+the diagnostics but never append a second access-level argument. The table above
+continues to apply specifically to inline bracketed SOQL.
 
 ## Renovo integration points
 

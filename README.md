@@ -59,25 +59,37 @@ The engine rewrites native DML (`insert`, `update`, `upsert`, `delete`,
 static bracketed SOQL queries, and appends
 `System.AccessLevel.SYSTEM_MODE` to eligible `Database` DML calls,
 `Database.query(...)`, and `Database.getQueryLocator(...)` calls. It preserves
-calls with an existing access-level argument and parsed query clauses declaring
-`WITH USER_MODE` or `WITH SYSTEM_MODE`. Literal strings and literal concatenations
-are inspected as SOQL; comments and quoted values do not count as access modes.
-Unresolved dynamic text is left unchanged with `DYNAMIC_QUERY_UNRESOLVED` instead
-of appending a possibly duplicate mode. Ambiguous DML overloads are left unchanged
-with `AMBIGUOUS_DML_ACCESS_LEVEL`. Static SOQL preserves explicit modes,
-adds the clause only to the outer query,
-and places it before `GROUP BY`, `ORDER BY`, and `LIMIT`. Queries with a different
-existing `WITH` clause remain unchanged with an `UNSUPPORTED_SOQL_WITH` diagnostic.
+calls with an existing access-level argument, including variables and expressions.
+All six supported query methods (`query`, `countQuery`, `getQueryLocator`, and
+their `WithBinds` variants) gain `System.AccessLevel.SYSTEM_MODE` when the
+access-level argument is missing, even when their text is unknown or has a WITH
+clause. Dynamic query text is never changed.
+
+Literal strings and literal concatenations are inspected as SOQL; comments and
+quoted values do not count as access modes. A visible `WITH USER_MODE` or
+`WITH SYSTEM_MODE` alongside an existing or proposed access-level argument emits
+`CONFLICTING_QUERY_MODES` as an error. Other visible WITH clauses, including
+`WITH SECURITY_ENFORCED`, emit `UNSUPPORTED_SOQL_WITH` as an error requiring
+compatibility review. Neither query text nor existing arguments are removed.
+Unknown text emits a `DYNAMIC_QUERY_UNRESOLVED` warning about a possible conflict.
+These diagnostics do not prevent applying the argument insertion; any diagnostic
+still makes the command exit with code 1, including on subsequent runs.
+
+Ambiguous DML overloads remain unchanged with `AMBIGUOUS_DML_ACCESS_LEVEL`.
+Static bracketed SOQL preserves explicit modes, adds the clause only to the outer
+query, and places it before `GROUP BY`, `ORDER BY`, and `LIMIT`. Static queries
+with a different existing WITH clause remain unchanged with
+`UNSUPPORTED_SOQL_WITH`.
 SOSL and other `Database.*` rewrites are not implemented.
 
 `Database.getQueryLocator([SELECT ...])` is one query operation. Without a mode,
 only its inline SOQL receives `WITH SYSTEM_MODE`. If the call already supplies an
 access-level argument (including a variable or expression), no inner mode is added.
-Existing equal text/call modes are repaired by removing the redundant optional
+Existing equal inline-query/call modes are repaired by removing the redundant optional
 call argument, preserving comments and the query's policy. Conflicting modes or
 an unknown argument alongside a query clause require review (`CONFLICTING_QUERY_MODES`).
 `*WithBinds` calls keep their required access-level argument; duplicate modes there
-require manual review. The fixer never inserts a second mode to resolve ambiguity.
+require manual review. For inline bracketed SOQL, the fixer never inserts a second mode to resolve ambiguity.
 
 For hook authors, see [access-mode validation](docs/HOOK_VALIDATION.md).
 

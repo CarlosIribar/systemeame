@@ -4,9 +4,13 @@
 
 - Treat inline `Database.getQueryLocator` and its SOQL as one access-mode operation,
   preventing simultaneous inner/outer mode insertion and repairing equal duplicates.
-- Parse dynamic literal query clauses, preserve comments and explicit mode expressions,
-  and report unresolved query text or ambiguous DML overloads instead of blindly
-  appending a potentially duplicate access level.
+- Add missing `System.AccessLevel.SYSTEM_MODE` arguments to all six supported
+  dynamic-query methods, including unresolved text. Preserve query text and existing
+  access-level arguments; report visible WITH conflicts as errors and unknown text
+  as a possible-conflict warning. Apply edits despite diagnostics and retain exit
+  code 1 for review. Keep static SOQL handling unchanged.
+- Parse dynamic literal query clauses and preserve comments and explicit mode
+  expressions. Leave ambiguous DML overloads unchanged for review.
 - Add regression coverage for exclusive modes, duplicate repair, conflicts, WithBinds,
   nested operations, and idempotent check/fix behavior. Document hook validation rules.
 

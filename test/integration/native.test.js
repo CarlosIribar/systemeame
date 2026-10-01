@@ -89,13 +89,41 @@ test('inline locator modes are exclusive, existing duplicates are repaired, and 
   assert.equal(readFileSync(file, 'utf8'), fixed);
 });
 
-test('unresolved dynamic text requires review without inserting a mode', async (t) => {
-  const { dir, file } = fixture(t);
-  const input = 'class Example { Object run(String queryText) { return Database.query(queryText); } }';
-  writeFileSync(file, input);
-  const result = await runNative({ protocolVersion: 1, projectDir: dir, all: true });
-  assert.equal(result.exitCode, 1);
-  assert.equal(result.result.changedFiles, 0);
-  assert.ok(result.result.diagnostics.some(({ code }) => code === 'DYNAMIC_QUERY_UNRESOLVED'));
-  assert.equal(readFileSync(file, 'utf8'), input);
-});
+for (const [text, code, severity] of [
+  ['queryText', 'DYNAMIC_QUERY_UNRESOLVED', 'Warning'],
+  ["'SELECT Id FROM Account WITH USER_MODE'", 'CONFLICTING_QUERY_MODES', 'Error'],
+  ["'SELECT Id FROM Account WITH SYSTEM_MODE'", 'CONFLICTING_QUERY_MODES', 'Error'],
+  ["'SELECT Id FROM Account WITH SECURITY_ENFORCED'", 'UNSUPPORTED_SOQL_WITH', 'Error'],
+]) {
+  test(`dynamic queries gain AccessLevel despite ${code}: ${text}`, async (t) => {
+    const { dir, file } = fixture(t);
+    const input = `class Example { Object run(String queryText) { return Database.query(${text}); } }`;
+    const expected = input.replace(`Database.query(${text})`, `Database.query(${text}, System.AccessLevel.SYSTEM_MODE)`);
+    writeFileSync(file, input);
+    const request = { protocolVersion: 1, projectDir: dir, all: true };
+    for (const flags of [{ dryRun: true }, { check: true }]) {
+      const result = await runNative({ ...request, ...flags });
+      assert.equal(result.exitCode, 1);
+      assert.equal(result.result.proposedEdits, 1);
+      assert.equal(result.result.changedFiles, 0);
+      assert.equal(readFileSync(file, 'utf8'), input);
+      assert.equal(result.result.diagnostics[0].code, code);
+      assert.equal(result.result.diagnostics[0].severity, severity);
+    }
+    const applied = await runNative(request);
+    assert.equal(applied.exitCode, 1);
+    assert.equal(applied.result.changedFiles, 1);
+    assert.equal(applied.result.diagnostics[0].code, code);
+    assert.equal(applied.result.diagnostics[0].severity, severity);
+    assert.equal(readFileSync(file, 'utf8'), expected);
+    for (const flags of [{}, { check: true }]) {
+      const repeated = await runNative({ ...request, ...flags });
+      assert.equal(repeated.exitCode, 1);
+      assert.equal(repeated.result.changedFiles, 0);
+      assert.equal(repeated.result.proposedEdits, 0);
+      assert.equal(repeated.result.diagnostics[0].code, code);
+      assert.equal(repeated.result.diagnostics[0].severity, severity);
+      assert.equal(readFileSync(file, 'utf8'), expected);
+    }
+  });
+}

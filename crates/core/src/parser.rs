@@ -124,7 +124,7 @@ fn collect_native_dml(node: tree_sitter::Node<'_>, edits: &mut Vec<Edit>) {
 ///
 /// The call shape is identified by grammar fields, never by a source-wide text
 /// search. Query calls coordinate with inline SOQL and only gain an argument
-/// when resolved text has no mode. Unknown policies are never overwritten.
+/// when no access-level argument exists. Dynamic text is preserved and diagnosed.
 fn collect_database_access_levels(
     node: tree_sitter::Node<'_>,
     source: &str,
@@ -293,7 +293,7 @@ fn access_mode(node: tree_sitter::Node<'_>, source: &str) -> Option<QueryMode> {
 }
 
 // Resolve only literal strings and literal concatenations. Unknown runtime text
-// can already contain a mode; adding another one is not a safe transformation.
+// can already contain a mode; report that possibility without rewriting its text.
 fn query_text(node: tree_sitter::Node<'_>, source: &str) -> Option<String> {
     let node = unwrapped(node);
     if node.kind() == "binary_expression"
@@ -405,68 +405,73 @@ fn collect_query_call(
     } else {
         query_text(first, source).and_then(|text| literal_query_mode(&text))
     };
-    if let Some(argument) = explicit {
-        if matches!(mode, Some(QueryMode::User | QueryMode::System)) {
-            if !with_binds && access_mode(argument, source) == mode {
-                // Remove only the comma and expression, preserving all comments.
-                let comma = (0..args.child_count())
-                    .filter_map(|i| args.child(i))
-                    .find(|child| {
-                        child.kind() == ","
-                            && child.start_byte() >= values[base_arity - 1].end_byte()
-                    });
-                if let Some(comma) = comma {
-                    analysis.edits.push(Edit {
-                        start_byte: comma.start_byte(),
-                        end_byte: comma.end_byte(),
-                        replacement: String::new(),
-                        rule_id: "duplicate-query-mode",
-                    });
-                    remove_code(argument, &mut analysis.edits);
-                }
-            } else {
-                query_diagnostic(
-                    analysis,
-                    args,
-                    "CONFLICTING_QUERY_MODES",
-                    "The query and call both declare access modes; their policies cannot safely be merged automatically.",
-                );
-            }
+    if !inline {
+        if explicit.is_none() {
+            append_access_level(
+                args,
+                if name.eq_ignore_ascii_case("getQueryLocator") {
+                    "database-get-query-locator"
+                } else {
+                    "database-query"
+                },
+                &mut analysis.edits,
+            );
         }
+        let (code, severity, message) = match mode {
+            Some(QueryMode::Missing) => return,
+            Some(QueryMode::User | QueryMode::System) => (
+                "CONFLICTING_QUERY_MODES",
+                Severity::Error,
+                "The dynamic query text declares an access mode alongside the existing or proposed AccessLevel argument. Review this duplicate or conflicting policy; the query text and existing argument are preserved.",
+            ),
+            Some(QueryMode::Other) => (
+                "UNSUPPORTED_SOQL_WITH",
+                Severity::Error,
+                "The dynamic query text has a WITH clause whose compatibility with the existing or proposed AccessLevel argument requires review. The query text and existing argument are preserved.",
+            ),
+            None => (
+                "DYNAMIC_QUERY_UNRESOLVED",
+                Severity::Warning,
+                "The dynamic query text cannot be verified statically and may contain a clause that conflicts with the existing or proposed AccessLevel argument. The query text is preserved.",
+            ),
+        };
+        analysis.diagnostics.push(Diagnostic {
+            code,
+            severity,
+            start_byte: args.start_byte(),
+            end_byte: args.end_byte(),
+            message: message.to_owned(),
+            suggestion: Some("Review the query text and AccessLevel argument together and resolve any duplicate or incompatible policy manually.".to_owned()),
+        });
         return;
     }
-    if inline {
-        return;
-    } // Static SOQL owns its mode; never append an argument too.
-    match mode {
-        Some(QueryMode::Missing) => append_access_level(
-            args,
-            if name.eq_ignore_ascii_case("getQueryLocator") {
-                "database-get-query-locator"
-            } else {
-                "database-query"
-            },
-            &mut analysis.edits,
-        ),
-        Some(QueryMode::User | QueryMode::System) if !with_binds => (),
-        Some(QueryMode::User | QueryMode::System) => query_diagnostic(
-            analysis,
-            args,
-            "QUERY_MODE_REVIEW",
-            "The query text declares a mode, but the WithBinds call requires an access-level argument. Review the call without adding a second mode.",
-        ),
-        Some(QueryMode::Other) => query_diagnostic(
-            analysis,
-            args,
-            "UNSUPPORTED_SOQL_WITH",
-            "The dynamic query has a different WITH clause; the call was left unchanged.",
-        ),
-        None => query_diagnostic(
-            analysis,
-            args,
-            "DYNAMIC_QUERY_UNRESOLVED",
-            "The query text cannot be verified statically; the call was left unchanged to avoid a duplicate or conflicting access mode.",
-        ),
+    if let Some(argument) = explicit
+        && matches!(mode, Some(QueryMode::User | QueryMode::System))
+    {
+        if !with_binds && access_mode(argument, source) == mode {
+            // Remove only the comma and expression, preserving all comments.
+            let comma = (0..args.child_count())
+                .filter_map(|i| args.child(i))
+                .find(|child| {
+                    child.kind() == "," && child.start_byte() >= values[base_arity - 1].end_byte()
+                });
+            if let Some(comma) = comma {
+                analysis.edits.push(Edit {
+                    start_byte: comma.start_byte(),
+                    end_byte: comma.end_byte(),
+                    replacement: String::new(),
+                    rule_id: "duplicate-query-mode",
+                });
+                remove_code(argument, &mut analysis.edits);
+            }
+        } else {
+            query_diagnostic(
+                analysis,
+                args,
+                "CONFLICTING_QUERY_MODES",
+                "The query and call both declare access modes; their policies cannot safely be merged automatically.",
+            );
+        }
     }
 }
 
@@ -573,6 +578,7 @@ fn diagnostic(code: &'static str, start: usize, end: usize, message: &str) -> Di
 #[cfg(test)]
 mod tests {
     use super::analyze;
+    use crate::Severity;
 
     fn assert_query_fix(query: &str, expected: &str) {
         let source =
@@ -712,16 +718,17 @@ mod tests {
     }
 
     #[test]
-    fn leaves_unknown_dynamic_text_for_review() {
+    fn adds_access_level_to_unknown_dynamic_text_with_warning() {
         let source = "public class Example { void run(String query) { Database.query(query); } }";
         let analysis = analyze(source);
-        assert!(analysis.edits.is_empty());
+        assert_eq!(analysis.edits.len(), 1);
         assert_eq!(analysis.diagnostics[0].code, "DYNAMIC_QUERY_UNRESOLVED");
+        assert_eq!(analysis.diagnostics[0].severity, Severity::Warning);
     }
 
     #[test]
     fn preserves_existing_database_query_modes() {
-        let source = "public class Example { void run() { List<Account> a = Database.query('SELECT Id FROM Account WITH USER_MODE'); List<Account> b = Database.query('SELECT Id FROM Account', System.AccessLevel.SYSTEM_MODE); } }";
+        let source = "public class Example { void run() { List<Account> a = Database.query('SELECT Id FROM Account', AccessLevel.USER_MODE); List<Account> b = Database.query('SELECT Id FROM Account', System.AccessLevel.SYSTEM_MODE); } }";
         assert!(analyze(source).edits.is_empty());
     }
 
@@ -764,7 +771,7 @@ mod tests {
 
     #[test]
     fn preserves_existing_database_dml_and_query_locator_access_levels() {
-        let source = "public class Example { void run(List<Account> rows) { Database.insert(rows, System.AccessLevel.USER_MODE); Database.update(rows, false, System.AccessLevel.SYSTEM_MODE); Database.upsert(rows, Account.External_Id__c, false, System.AccessLevel.USER_MODE); Database.getQueryLocator('SELECT Id FROM Account', System.AccessLevel.SYSTEM_MODE); Database.getQueryLocator('SELECT Id FROM Account WITH USER_MODE'); } }";
+        let source = "public class Example { void run(List<Account> rows) { Database.insert(rows, System.AccessLevel.USER_MODE); Database.update(rows, false, System.AccessLevel.SYSTEM_MODE); Database.upsert(rows, Account.External_Id__c, false, System.AccessLevel.USER_MODE); Database.getQueryLocator('SELECT Id FROM Account', System.AccessLevel.SYSTEM_MODE); } }";
         assert!(analyze(source).diagnostics.is_empty());
         assert!(analyze(source).edits.is_empty());
     }
@@ -853,10 +860,9 @@ mod tests {
     #[test]
     fn repairs_existing_duplicate_modes_without_losing_comments() {
         for mode in ["USER_MODE", "SYSTEM_MODE"] {
-            for query in [
-                format!("([SELECT Id FROM Account WITH /* inner */\n{mode}])"),
-                format!("'SELECT Id FROM Account WITH\\n{mode}'"),
-            ] {
+            for query in [format!(
+                "([SELECT Id FROM Account WITH /* inner */\n{mode}])"
+            )] {
                 let fixed = fix_call(&format!(
                     "Database.getQueryLocator(\r\n{query}, /* before */ (system /* namespace */ . AccessLevel /* enum */ . {mode}) /* after */\r\n)"
                 ));
@@ -895,15 +901,6 @@ mod tests {
     fn dynamic_queries_use_parsed_clauses_not_substring_matches() {
         for method in ["query", "countQuery", "getQueryLocator"] {
             for text in [
-                "'SELECT Id FROM Account WITH\\nSYSTEM_MODE'",
-                "'SELECT Id FROM Account WITH /* keep */ user_mode'",
-                "('SELECT Id FROM Account WITH ' + 'SYSTEM_MODE')",
-            ] {
-                let call = format!("Database.{method}({text})");
-                assert!(fix_call(&call).contains(&call));
-                assert!(!fix_call(&call).contains("AccessLevel"));
-            }
-            for text in [
                 "'SELECT Id FROM Account WHERE Name = \\'WITH USER_MODE\\''",
                 "'SELECT Id FROM Account /* WITH SYSTEM_MODE */'",
                 "'SELECT Id FROM Account' + ' ORDER BY Name'",
@@ -918,65 +915,101 @@ mod tests {
     }
 
     #[test]
-    fn unknown_dynamic_queries_never_receive_a_second_hidden_mode() {
-        for text in [
-            "query",
-            "buildQuery()",
-            "'SELECT Id FROM Account ' + suffix",
-            "flag ? 'SELECT Id FROM Account' : 'SELECT Id FROM Account WITH USER_MODE'",
-        ] {
-            for method in [
-                "query",
-                "countQuery",
-                "getQueryLocator",
-                "queryWithBinds",
-                "countQueryWithBinds",
-                "getQueryLocatorWithBinds",
-            ] {
-                let binds = if method.ends_with("WithBinds") {
-                    ", binds"
-                } else {
-                    ""
-                };
-                let source = format!(
-                    "class Example {{ void run() {{ Database.{method}({text}{binds}); }} }}"
-                );
-                let analysis = analyze(&source);
-                assert!(analysis.edits.is_empty(), "{source}");
-                assert_eq!(analysis.diagnostics[0].code, "DYNAMIC_QUERY_UNRESOLVED");
-                let call = format!("Database.{method}({text}{binds}, mode)");
-                assert!(fix_call(&call).contains(&call));
-            }
-        }
-    }
-
-    #[test]
-    fn with_binds_never_gains_a_duplicate_or_loses_required_mode_argument() {
+    fn dynamic_calls_add_only_missing_arguments_and_preserve_text() {
         for method in [
+            "query",
+            "countQuery",
+            "getQueryLocator",
             "queryWithBinds",
             "countQueryWithBinds",
             "getQueryLocatorWithBinds",
         ] {
-            for extra in ["", ", System.AccessLevel.SYSTEM_MODE"] {
-                let source = format!(
-                    "class Example {{ void run() {{ Database.{method}('SELECT Id FROM Account WITH SYSTEM_MODE', binds{extra}); }} }}"
-                );
-                let analysis = analyze(&source);
-                assert!(analysis.edits.is_empty());
-                assert_eq!(analysis.diagnostics.len(), 1);
+            let binds = if method.ends_with("WithBinds") {
+                ", /* keep */ binds"
+            } else {
+                ""
+            };
+            for (text, diagnostic) in [
+                ("'SELECT Id FROM Account'", None),
+                (
+                    "'SELECT Id FROM Account WITH\\nSYSTEM_MODE'",
+                    Some(("CONFLICTING_QUERY_MODES", Severity::Error)),
+                ),
+                (
+                    "'SELECT Id FROM Account WITH /* keep */ user_mode'",
+                    Some(("CONFLICTING_QUERY_MODES", Severity::Error)),
+                ),
+                (
+                    "('SELECT Id FROM Account WITH ' + 'SYSTEM_MODE')",
+                    Some(("CONFLICTING_QUERY_MODES", Severity::Error)),
+                ),
+                (
+                    "'SELECT Id FROM Account WITH SECURITY_ENFORCED'",
+                    Some(("UNSUPPORTED_SOQL_WITH", Severity::Error)),
+                ),
+                (
+                    "query",
+                    Some(("DYNAMIC_QUERY_UNRESOLVED", Severity::Warning)),
+                ),
+                (
+                    "buildQuery()",
+                    Some(("DYNAMIC_QUERY_UNRESOLVED", Severity::Warning)),
+                ),
+                (
+                    "'SELECT Id FROM Account ' + suffix",
+                    Some(("DYNAMIC_QUERY_UNRESOLVED", Severity::Warning)),
+                ),
+                (
+                    "flag ? 'SELECT Id FROM Account' : 'SELECT Id FROM Account WITH USER_MODE'",
+                    Some(("DYNAMIC_QUERY_UNRESOLVED", Severity::Warning)),
+                ),
+            ] {
+                for extra in [
+                    "",
+                    ", System.AccessLevel.SYSTEM_MODE",
+                    ", AccessLevel.USER_MODE",
+                    ", mode",
+                    ", options.accessLevel",
+                    ", (flag ? AccessLevel.USER_MODE : AccessLevel.SYSTEM_MODE)",
+                ] {
+                    let prefix =
+                        format!("class Example {{ void run() {{ Database.{method}({text}{binds}");
+                    let source = format!("{prefix}{extra}); }} }}");
+                    let analysis = analyze(&source);
+                    assert_eq!(
+                        analysis.edits.len(),
+                        usize::from(extra.is_empty()),
+                        "{source}"
+                    );
+                    let expected_extra = if extra.is_empty() {
+                        ", System.AccessLevel.SYSTEM_MODE"
+                    } else {
+                        extra
+                    };
+                    let fixed = crate::apply_edits(&source, &analysis.edits).unwrap();
+                    assert_eq!(fixed, format!("{prefix}{expected_extra}); }} }}"));
+                    let again = analyze(&fixed);
+                    assert!(again.edits.is_empty(), "{fixed}");
+                    for result in [&analysis, &again] {
+                        if let Some((code, severity)) = &diagnostic {
+                            assert_eq!(result.diagnostics.len(), 1, "{source}");
+                            assert_eq!(result.diagnostics[0].code, *code, "{source}");
+                            assert_eq!(&result.diagnostics[0].severity, severity, "{source}");
+                        } else {
+                            assert!(result.diagnostics.is_empty(), "{source}");
+                        }
+                    }
+                }
             }
-            let fixed = fix_call(&format!(
-                "Database.{method}('SELECT Id FROM Account', /* keep */ binds /* tail */)"
-            ));
-            assert_eq!(fixed.matches("AccessLevel.SYSTEM_MODE").count(), 1);
         }
     }
 
     #[test]
     fn unrelated_nested_operations_do_not_inherit_an_outer_calls_mode() {
-        let fixed = fix_call(
-            "Database.query(buildQuery([SELECT Id FROM Account]), System.AccessLevel.USER_MODE)",
-        );
+        let source = "class Example { Object run() { return Database.query(buildQuery([SELECT Id FROM Account]), System.AccessLevel.USER_MODE); } }";
+        let analysis = analyze(source);
+        assert_eq!(analysis.diagnostics[0].code, "DYNAMIC_QUERY_UNRESOLVED");
+        let fixed = crate::apply_edits(source, &analysis.edits).unwrap();
         assert!(fixed.contains("[SELECT Id FROM Account WITH SYSTEM_MODE]"));
         let fixed = fix_call(
             "Database.getQueryLocator([SELECT Id FROM Account WHERE Id = :findId([SELECT Id FROM Contact])], System.AccessLevel.USER_MODE)",
