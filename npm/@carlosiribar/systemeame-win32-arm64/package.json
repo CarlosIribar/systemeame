@@ -1,6 +1,6 @@
 {
   "name": "@carlosiribar/systemeame-win32-arm64",
-  "version": "0.2.1",
+  "version": "0.2.7",
   "description": "Native Windows ARM64 binary for systemeame",
   "license": "MIT",
   "os": [
